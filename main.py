@@ -4,17 +4,16 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_httpauth import HTTPBasicAuth
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# === Ініціалізація додатка ===
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///catalog.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# === Компоненти ===
+
 api = Api(app)
 db = SQLAlchemy(app)
 auth = HTTPBasicAuth()
 
-# === Моделі БД ===
+
 class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -30,7 +29,7 @@ class Item(db.Model):
     weight = db.Column(db.Float, nullable=False)
     color = db.Column(db.String(50), nullable=False)
 
-# === Схема відповіді ===
+
 item_fields = {
     'id': fields.Integer,
     'name': fields.String,
@@ -40,7 +39,7 @@ item_fields = {
     'color': fields.String
 }
 
-# === Аутентифікація ===
+
 @auth.verify_password
 def verify_password(username, password):
     user = User.query.filter_by(username=username).first()
@@ -48,7 +47,6 @@ def verify_password(username, password):
         return user
 
 def create_default_admin():
-    """Створює адміністратора за замовчуванням."""
     if not User.query.filter_by(username='admin').first():
         admin = User(username='admin', password=generate_password_hash('password'))
         db.session.add(admin)
@@ -57,24 +55,19 @@ def create_default_admin():
     else:
         print("Користувач 'admin' вже існує.")
 
-# === Утиліти ===
 def validate_fields(data, required_fields):
-    """Перевірка наявності обов'язкових полів у запиті."""
     missing = [field for field in required_fields if field not in data]
     if missing:
         return {'message': f"Пропущені поля: {', '.join(missing)}"}, 400
     return None
 
-# === Ресурси ===
 class ItemList(Resource):
     @marshal_with(item_fields)
     def get(self):
-        """Отримати список усіх товарів."""
         return Item.query.all(), 200
 
     @auth.login_required
     def post(self):
-        """Створити новий товар."""
         data = request.get_json()
         error = validate_fields(data, ['name', 'price', 'size', 'weight', 'color'])
         if error:
@@ -87,13 +80,11 @@ class ItemList(Resource):
 class ItemResource(Resource):
     @marshal_with(item_fields)
     def get(self, id):
-        """Отримати конкретний товар за ID."""
         item = Item.query.get_or_404(id)
         return item, 200
 
     @auth.login_required
     def put(self, id):
-        """Оновити товар за ID."""
         item = Item.query.get_or_404(id)
         data = request.get_json()
         for key, value in data.items():
@@ -104,17 +95,14 @@ class ItemResource(Resource):
 
     @auth.login_required
     def delete(self, id):
-        """Видалити товар за ID."""
         item = Item.query.get_or_404(id)
         db.session.delete(item)
         db.session.commit()
         return {'message': 'Товар видалено'}, 200
 
-# === Маршрути ===
 api.add_resource(ItemList, '/items')
 api.add_resource(ItemResource, '/items/<int:id>')
 
-# === Запуск додатка ===
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
